@@ -6,6 +6,9 @@ class Consumer : public Node
 {
 public:
 	virtual void Act();
-	bool b;
+	bool first;
+	bool satisfied;
+	int timeToSatisfaction;
+	vector<string> waiting;
 };
 #endif

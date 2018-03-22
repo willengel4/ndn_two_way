@@ -14,6 +14,8 @@ public:
 	Entry* SearchExact(string name);
 	Entry* SearchLongestPrefix(string name);
 	void AddEntry(Packet * p, Node * node);
+	void View();
+	void RemoveEntry(Entry * e);
 	int min(int a, int b);
 };
 #endif

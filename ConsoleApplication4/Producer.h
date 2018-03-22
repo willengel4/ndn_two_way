@@ -12,8 +12,7 @@ public:
 	string prefix;
 	Producer(string pre);
 	virtual void Act();
+	bool first;
 	string GenerateName(int len);
-
-	bool b;
 };
 #endif

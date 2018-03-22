@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "Packet.h"
+#include <string>
 
+using namespace std;
 
 Packet::Packet(int pt, int ds, string n)
 {

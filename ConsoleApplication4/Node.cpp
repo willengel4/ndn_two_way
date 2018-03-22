@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "Node.h"
 #include <iostream>
+#include "Consumer.h"
 
 using namespace std;
 
@@ -49,6 +50,28 @@ void Node::InsertPacket(PairNodePacket* pnp)
 	inPackets.push_back(pnp);
 }
 
+void Node::View()
+{
+	cout << "Displaying node: " << nodeId << endl;
+	cout << "Packets in in-queue..." << endl;
+	for (int i = 0; i < inPackets.size(); i++)
+		cout << inPackets[i]->node->nodeId << "\t" << "Packet(" << inPackets[i]->packet->packetType << "," << inPackets[i]->packet->name << ")" << endl;
+	cout << "Packets in out-queue..." << endl;
+	for (int i = 0; i < outPackets.size(); i++)
+		cout << outPackets[i]->node->nodeId << "\t" << "Packet(" << outPackets[i]->packet->packetType << "," << outPackets[i]->packet->name << ")" << endl;
+	cout << "Content store" << endl;
+	this->contentStore->View();
+	cout << "PIT" << endl;
+	this->pit->View();
+	cout << "PAT" << endl;
+	this->pat->View();
+	cout << "FIB" << endl;
+	this->fib->View();
+	cout << "FAB" << endl;
+	this->fab->View();
+
+}
+
 void Node::HandleOutPackets()
 {
 	for (int i = outPackets.size() - 1; i >= 0; i--)
@@ -67,6 +90,7 @@ void Node::HandleInPackets()
 {
 	for (int i = 0; i < inPackets.size(); i++)
 	{
+		cout << "Node " << this->nodeId << " has received packet (" << inPackets[i]->packet->packetType << ", " << inPackets[i]->packet->dataSize << ", " << inPackets[i]->packet->name << ")" << endl;
 		if (inPackets[i]->packet->packetType == 0)
 			HandleData(inPackets[i]->packet, inPackets[i]->node);
 		else if (inPackets[i]->packet->packetType == 1)
@@ -84,28 +108,33 @@ void Node::HandleInterest(Packet * interest, Node * from)
 	* store packet back onto the incoming face */
 	if (contentStore->SearchExact(interest->name))
 	{
+		cout << "Content store hit. Forwarding data back down stream" << endl;
 		PreForward(contentStore->SearchExact(interest->name)->packet, from);
 		return;
 	}
 
 	/* PIT hit. Discard */
 	if (pit->SearchExact(interest->name))
+	{
+		cout << "PIT Hit. Duplicate interest. Discarding." << endl;
 		return;
+	}
+	/* Add the entry to the pit */
+	pit->AddEntry(interest, from);
 
 	/* PAT hit. Interest meets Ad. Send Interest
 	* towards Producer via breadcrumb */
 	if (pat->SearchExact(interest->name))
 	{
+		cout << "PAT hit. Sending interest upstream toward producer." << endl;
 		PreForward(interest, pat->SearchExact(interest->name)->nodes[0]);
 		return;
 	}
 
-	/* Add the entry to the pat */
-	pit->AddEntry(interest, from);
-
 	/* FIB hit. Forward Interest along matching FIB entry faces */
 	if (fib->SearchExact(interest->name))
 	{
+		cout << "FIB Hit. Forwarding interest along FIB faces" << endl;
 		vector<Node*> d = fib->SearchExact(interest->name)->nodes;
 		PreForwardMultiple(interest, d);
 		return;
@@ -114,40 +143,48 @@ void Node::HandleInterest(Packet * interest, Node * from)
 	/* FAB hit. Forward Interest along matching FAB entry faces */
 	if (fab->SearchExact(interest->name))
 	{
+		cout << "FAB Hit. Forwarding interest along FAB faces" << endl;
 		PreForwardMultiple(interest, fab->SearchExact(interest->name)->nodes);
 		return;
 	}
 
+	cout << "No table hits. Forwarding along all faces." << endl;
 	/* No hits, forward along all nodes except in node */
 	PreForwardMultiple(interest, links, from->nodeId);
 }
 
 void Node::HandleAd(Packet * ad, Node * from)
 {
-	/* Content store hit. Forward the content
-	* store packet back onto the incoming face */
+	/* Content store hit. data already exists and doesn't need an Ad here. Discard ad. */
 	if (contentStore->SearchExact(ad->name))
+	{
+		cout << "Content store hit. Redundant Ad. Discarding" << endl;
 		return;
+	}
 
 	/* PIT hit. Ad meets interest. Copy ad, make it an interest. Forward it along pat entry face. */
 	if (pit->SearchExact(ad->name))
 	{
+		cout << "PIT hit. sending interest up towards producer along incoming face." << endl;
 		Packet* searchResult = pit->SearchExact(ad->name)->packet;
 		Packet* newInterest = new Packet(1, searchResult->dataSize, searchResult->name);
-		PreForward(newInterest, pit->SearchExact(ad->name)->nodes[0]);
+		PreForward(newInterest, from);
 		return;
 	}
 
 	/* PAT hit. Redundant ad. */
 	if (pat->SearchExact(ad->name))
+	{
+		cout << "PAT hit. Redundant Ad. Discarding" << endl;
 		return;
-
+	}
 	/* Add the entry to the pat table */
 	pat->AddEntry(ad, from);
 
 	/* FIB hit. Forward ad along matching FIB entry faces */
 	if (fib->SearchExact(ad->name))
 	{
+		cout << "FIB Hit. Forwarding ad along fib faces" << endl;
 		vector<Node*> searchNodes = fib->SearchExact(ad->name)->nodes;
 		PreForwardMultiple(ad, searchNodes);
 		return;
@@ -156,10 +193,12 @@ void Node::HandleAd(Packet * ad, Node * from)
 	/* FAB hit. Forward ad along matching FAB entry faces */
 	if (fab->SearchExact(ad->name))
 	{
+		cout << "FAB hit. Forwarding ad along fab faces" << endl;
 		PreForwardMultiple(ad, fab->SearchExact(ad->name)->nodes);
 		return;
 	}
 
+	cout << "No table hits. Forwarding ad along all faces." << endl;
 	/* No hits, forward along all nodes except in node */
 	PreForwardMultiple(ad, links, from->nodeId);
 }
@@ -175,7 +214,22 @@ void Node::HandleData(Packet * data, Node * from)
 	/* PIT hit. Send data towards consumer */
 	if (pit->SearchExact(data->name))
 	{
-		PreForward(data, pit->SearchExact(data->name)->nodes[0]);
+		if (this->nodeType == 0)
+		{
+			Consumer * c = (Consumer*)this;
+			for (int i = 0; i < c->waiting.size(); i++)
+			{
+				if (c->waiting[i] == data->name)
+				{
+					c->satisfied = true;
+				}
+			}
+		}
+
+		Entry * entry = pit->SearchExact(data->name);
+		cout << "Sending  data to " << entry->nodes[0]->nodeId << " and removing interest from PIT" << endl;
+		pit->RemoveEntry(entry);
+		PreForward(data, entry->nodes[0]);
 		return;
 	}
 }

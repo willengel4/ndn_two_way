@@ -24,8 +24,12 @@ class Node
 		vector<Packet *> * datas;
 		int transmissionRate = 50;
 		int nodeId;
+		int xPos;
+		int yPos;
+		int nodeType;
 		Node();
 		virtual void Act();
+		void View();
 		void Forward(Packet * p, Node * to);
 		void PreForward(Packet * p, Node * to);
 		void PreForwardMultiple(Packet * p, vector<Node*> nodes, int excluding);

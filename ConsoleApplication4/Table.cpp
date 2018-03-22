@@ -16,6 +16,18 @@ int Table::min(int a, int b)
 	return  a < b ? a : b;
 }
 
+void Table::RemoveEntry(Entry * entry)
+{
+	for (int i = 0; i < entries.size(); i++)
+	{
+		if (entries[i] == entry)
+		{
+			entries.erase(entries.begin() + i);
+			return;
+		}
+	}
+}
+
 Entry* Table::SearchLongestPrefix(string name)
 {
 	int longest = 0;
@@ -38,6 +50,17 @@ Entry* Table::SearchLongestPrefix(string name)
 	}
 
 	return ent;
+}
+
+void Table::View()
+{
+	for (int i = 0; i < entries.size(); i++)
+	{
+		for (int f = 0; f < entries[i]->nodes.size(); f++)
+			if(entries[i]->nodes[f] != NULL)
+				cout << entries[i]->nodes[f]->nodeId << " ";
+		cout << "\tPacket(" << entries[i]->packet->packetType << "," << entries[i]->packet->name << ")" << endl;
+	}
 }
 
 void Table::AddEntry(Packet * p, Node * node)
