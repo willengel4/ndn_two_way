@@ -52,6 +52,8 @@ void Node::InsertPacket(PairNodePacket* pnp)
 
 void Node::View()
 {
+	return;
+	
 	cout << "Displaying node: " << nodeId << endl;
 	cout << "Packets in in-queue..." << endl;
 	for (int i = 0; i < inPackets.size(); i++)
